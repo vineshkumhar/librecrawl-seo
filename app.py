@@ -729,9 +729,39 @@ if nav_page == "🕷️ Live Spider":
     with col_refresh:
         auto_refresh = st.toggle("⚡ Auto-Poll", value=True)
 
-    if start_btn:
-        if not target_url:
-            st.error("Please enter a valid URL to crawl.")
+    # --- NEW: Bulk URL File Uploader ---
+    with st.expander("📁 Or Upload URL List (.txt / .csv)", expanded=False):
+        uploaded_file = st.file_uploader("Upload a text file (one URL per line) or CSV file", type=["txt", "csv"])
+        uploaded_urls = []
+        if uploaded_file is not None:
+            file_content = uploaded_file.getvalue().decode("utf-8")
+            if uploaded_file.name.endswith('.csv'):
+                reader = csv.reader(StringIO(file_content))
+                for row in reader:
+                    if row:
+                        # Grab first column or check for 'url' header
+                        val = row[0].strip()
+                        if val.startswith('http'):
+                            uploaded_urls.append(val)
+            else:
+                for line in file_content.splitlines():
+                    line = line.strip()
+                    if line and not line.startswith('#') and line.startswith('http'):
+                        uploaded_urls.append(line)
+            
+            if uploaded_urls:
+                st.info(f"Loaded **{len(uploaded_urls)} URLs** from file. Click 'Start Bulk Crawl' below to begin.")
+
+    # Start button handling (supports single URL or uploaded file list)
+    bulk_start_btn = False
+    if uploaded_urls:
+        bulk_start_btn = st.button(f"▶️ Start Bulk Crawl ({len(uploaded_urls)} URLs)", type="primary", use_container_width=True, disabled=crawler.is_running)
+
+    if start_btn or bulk_start_btn:
+        urls_to_crawl = uploaded_urls if (bulk_start_btn and uploaded_urls) else ([target_url] if target_url else [])
+        
+        if not urls_to_crawl:
+            st.error("Please enter a valid URL or upload a file containing URLs.")
         else:
             if tier == 'guest' and not LOCAL_MODE:
                 client_ip = get_client_ip()
@@ -749,11 +779,19 @@ if nav_page == "🕷️ Live Spider":
                 crawler.config['demo_mode'] = True
                 crawler.config['demo_memory_limit_bytes'] = int(1.5 * 1024 * 1024 * 1024)
 
-            ok, msg = crawler.start_crawl(target_url, user_id=user_id, session_id=st.session_state.session_id)
+            # Start crawl with the primary URL
+            primary_url = urls_to_crawl[0]
+            ok, msg = crawler.start_crawl(primary_url, user_id=user_id, session_id=st.session_state.session_id)
+            
+            # If there are additional URLs from an uploaded file, seed them into the crawler queue if supported
+            if ok and len(urls_to_crawl) > 1 and hasattr(crawler, 'queue'):
+                for extra_url in urls_to_crawl[1:]:
+                    crawler.queue.add(extra_url, depth=0)
+
             if ok and crawler.crawl_id:
                 st.session_state.current_crawl_id = crawler.crawl_id
-                log_crawl_start(user_id, target_url)
-                st.toast(f"Crawl started: {msg}")
+                log_crawl_start(user_id, primary_url)
+                st.toast(f"Crawl started with {len(urls_to_crawl)} target(s): {msg}")
                 st.rerun()
             else:
                 st.error(msg)
