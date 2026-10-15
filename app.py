@@ -21,6 +21,17 @@ import streamlit as st
 import streamlit.components.v1 as components
 from dotenv import load_dotenv
 
+import sys
+import os
+
+# Add root folder to python path
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+
+# Now internal modules will import cleanly
+from src.crawler import WebCrawler
+from src.settings_manager import SettingsManager
+from src.auth_db import ...
+
 # 1. Page Configuration (Must be the very first Streamlit command)
 st.set_page_config(
     page_title="LibreCrawl - SEO Spider",
