@@ -1,0 +1,9 @@
+*.pyc
+__pycache__/
+.claude/settings.local.json
+users.db
+data/*.db
+data/*.db-wal
+data/*.db-shm
+.env
+.streamlit/secrets.toml
